@@ -1,19 +1,36 @@
+import { db } from '../db';
+import { usersTable } from '../db/schema';
 import { type UpdateUserInput, type User } from '../schema';
+import { eq } from 'drizzle-orm';
 
 export const updateUser = async (input: UpdateUserInput): Promise<User> => {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating user information including role changes,
-    // contact details, and status while ensuring proper authorization and tenant isolation.
-    return Promise.resolve({
-        id: input.id,
-        email: input.email || 'updated@example.com',
-        password_hash: 'existing_hash_placeholder', // Keep existing password hash
-        first_name: input.first_name || 'Updated First Name',
-        last_name: input.last_name || 'Updated Last Name',
-        role: input.role || 'STAFF',
-        restaurant_id: input.restaurant_id || null,
-        is_active: input.is_active !== undefined ? input.is_active : true,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as User);
+  try {
+    // Build the update object with only provided fields
+    const updateFields: Partial<typeof usersTable.$inferInsert> = {
+      updated_at: new Date()
+    };
+
+    if (input.email !== undefined) updateFields.email = input.email;
+    if (input.first_name !== undefined) updateFields.first_name = input.first_name;
+    if (input.last_name !== undefined) updateFields.last_name = input.last_name;
+    if (input.role !== undefined) updateFields.role = input.role;
+    if (input.restaurant_id !== undefined) updateFields.restaurant_id = input.restaurant_id;
+    if (input.is_active !== undefined) updateFields.is_active = input.is_active;
+
+    // Update the user record
+    const result = await db.update(usersTable)
+      .set(updateFields)
+      .where(eq(usersTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`User with id ${input.id} not found`);
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('User update failed:', error);
+    throw error;
+  }
 };

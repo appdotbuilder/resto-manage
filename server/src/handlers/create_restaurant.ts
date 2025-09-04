@@ -1,11 +1,12 @@
+import { db } from '../db';
+import { restaurantsTable, subscriptionsTable } from '../db/schema';
 import { type CreateRestaurantInput, type Restaurant } from '../schema';
 
 export const createRestaurant = async (input: CreateRestaurantInput): Promise<Restaurant> => {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating a new restaurant (tenant) with proper
-    // data validation, default subscription setup, and initial configuration.
-    return Promise.resolve({
-        id: 0, // Placeholder ID
+  try {
+    // Insert restaurant record
+    const result = await db.insert(restaurantsTable)
+      .values({
         name: input.name,
         description: input.description || null,
         email: input.email,
@@ -13,8 +14,25 @@ export const createRestaurant = async (input: CreateRestaurantInput): Promise<Re
         address: input.address || null,
         logo_url: input.logo_url || null,
         brand_color: input.brand_color || null,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Restaurant);
+        is_active: true
+      })
+      .returning()
+      .execute();
+
+    const restaurant = result[0];
+
+    // Create a default FREE subscription for the new restaurant
+    await db.insert(subscriptionsTable)
+      .values({
+        restaurant_id: restaurant.id,
+        tier: 'FREE',
+        status: 'ACTIVE'
+      })
+      .execute();
+
+    return restaurant;
+  } catch (error) {
+    console.error('Restaurant creation failed:', error);
+    throw error;
+  }
 };

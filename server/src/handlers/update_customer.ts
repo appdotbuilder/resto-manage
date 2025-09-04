@@ -1,22 +1,67 @@
+import { db } from '../db';
+import { customersTable } from '../db/schema';
 import { type UpdateCustomerInput, type Customer } from '../schema';
+import { eq, and } from 'drizzle-orm';
 
 export const updateCustomer = async (input: UpdateCustomerInput, restaurantId: number): Promise<Customer> => {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating customer information including
-    // contact details, loyalty points, and notes while ensuring tenant isolation.
-    return Promise.resolve({
-        id: input.id,
-        restaurant_id: restaurantId,
-        first_name: input.first_name || 'Updated First Name',
-        last_name: input.last_name || 'Updated Last Name',
-        email: input.email || null,
-        phone: input.phone || null,
-        loyalty_points: input.loyalty_points || 0,
-        total_visits: 0, // This should be calculated from actual data
-        last_visit_date: null,
-        notes: input.notes || null,
-        is_active: input.is_active !== undefined ? input.is_active : true,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Customer);
+  try {
+    // First, verify that the customer exists and belongs to the restaurant (tenant isolation)
+    const existingCustomer = await db.select()
+      .from(customersTable)
+      .where(and(
+        eq(customersTable.id, input.id),
+        eq(customersTable.restaurant_id, restaurantId)
+      ))
+      .execute();
+
+    if (existingCustomer.length === 0) {
+      throw new Error('Customer not found or does not belong to this restaurant');
+    }
+
+    // Build update object only with provided fields
+    const updateData: any = {
+      updated_at: new Date()
+    };
+
+    if (input.first_name !== undefined) {
+      updateData.first_name = input.first_name;
+    }
+    if (input.last_name !== undefined) {
+      updateData.last_name = input.last_name;
+    }
+    if (input.email !== undefined) {
+      updateData.email = input.email;
+    }
+    if (input.phone !== undefined) {
+      updateData.phone = input.phone;
+    }
+    if (input.loyalty_points !== undefined) {
+      updateData.loyalty_points = input.loyalty_points;
+    }
+    if (input.notes !== undefined) {
+      updateData.notes = input.notes;
+    }
+    if (input.is_active !== undefined) {
+      updateData.is_active = input.is_active;
+    }
+
+    // Update customer record
+    const result = await db.update(customersTable)
+      .set(updateData)
+      .where(and(
+        eq(customersTable.id, input.id),
+        eq(customersTable.restaurant_id, restaurantId)
+      ))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error('Failed to update customer');
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('Customer update failed:', error);
+    throw error;
+  }
 };
